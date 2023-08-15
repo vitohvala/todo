@@ -31,8 +31,8 @@ void reset_terminal(){
 }
 
 /*
- * save the old state of the terminal so we can reset
- * turn off the echo and  non-canonical mode
+ * save the old state of the terminal
+ * turn off the echo and non-canonical mode
  *
  * */
 
