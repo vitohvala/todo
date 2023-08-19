@@ -6,18 +6,38 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <ctype.h>
 
 #define MAX_INPUT_BUFFER 4096
+#define CTRL_KEY(x) ((x) & 0x1f)
 #define printi(x) printf("%d\n", x)
 #define printc(x) printf("%c\n", x)
-#define GO_UP printf("\033[A")
-#define GO_DOWN printf("\033[B")
-#define GO_RIGHT printf("\033[C")
-#define GO_LEFT printf("\033[D")
+
 
 static struct termios old_termios;
-int end = 1;
+int end = 1, cursorx = 0, cursory = 0;
+
+enum direction{
+    UP = 1001,
+    DOWN,
+    RIGHT,
+    LEFT
+};
+
+
+//clear the screen and put cursor on 0,0
+void clear(){
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+}
+
+//clear the screen print the error and exit
+void die(char *s){
+    clear();
+    perror(s);
+    exit(0);
+}
 
 /*
  * reset color changes 
@@ -27,12 +47,14 @@ int end = 1;
 void reset_terminal(){
     printf("\033[m");
     fflush(stdout);
+    clear();
     tcsetattr(STDIN_FILENO, TCSANOW, &old_termios);
 }
 
 /*
  * save the old state of the terminal
  * turn off the echo and non-canonical mode
+ * disable ctrl-q, ctrl-z, ctrl-c, ctrl-v signals
  *
  * */
 
@@ -41,36 +63,103 @@ void configure_terminal(){
     tcgetattr(STDIN_FILENO, &old_termios);
     struct termios new_termios = old_termios;
    
-    new_termios.c_lflag &= ~(ICANON | ECHO);
-    new_termios.c_cc[VMIN] = 1;
-    new_termios.c_cc[VTIME] =  0;
+    new_termios.c_iflag &= ~(IXON);
+    new_termios.c_lflag &= ~(ICANON | ECHO | ISIG);
+    new_termios.c_cc[VMIN] = 0;
+    new_termios.c_cc[VTIME] =  1;
 
     tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
 
     atexit(reset_terminal);
 }
 
-void signal_handler(__attribute__((unused)) int signum){
-    end = 0;
+/*
+ * prints the cursor positions based on cursorx and cursory values
+ *
+ * */
+
+void print_cursor_positions(){
+    
+    char buf[32];
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", cursory + 1, cursorx+ 1);
+    
+    write(STDOUT_FILENO, buf, strlen(buf));
+}
+
+/*
+ * Read input
+ * 
+ * */
+
+int read_key(){
+    char c;
+    int nread;
+
+    while ((nread = read(STDIN_FILENO, &c, 1)) != 1){
+        if(nread == -1) 
+            die("read");
+    }
+
+
+    if(c == '\x1b'){
+        char key[3] = {0};
+        if((read(STDIN_FILENO, key, 3)) == -1) return -1;
+        if(key[0] == '['){
+            switch (key[1]) {
+                case 'A': return UP;
+                case 'B': return DOWN;
+                case 'C': return RIGHT;
+                case 'D': return LEFT;
+            }
+        }
+    }
+    return c;
+}
+/*
+ * Handle input 
+ * get terminal size and control user input
+ * */
+void input_handle(){
+    int c = read_key();
+
+    struct winsize size;
+    
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == -1) {
+        die("ioctl");
+        end = 0;
+    }
+
+
+    switch (c) {
+        case RIGHT:
+            if (cursorx < size.ws_col) cursorx++;
+            break;
+        case DOWN:
+            if(cursory < size.ws_row) cursory++;
+            break;
+        case UP:
+            if(cursory) cursory--;
+            break;
+        case LEFT: 
+            if (cursorx) cursorx--;
+            break;
+        case CTRL_KEY('c'):
+        case CTRL_KEY('q'):
+            end = 0;
+            break;
+    }
+
 }
 
 int main(int argc, char **argv){
-    (void)argc; (void)argv;
-   
+    (void)argc; (void)argv; 
 
-    signal(SIGINT, signal_handler);
     configure_terminal();
-    char c;
+    clear(); 
+    puts("Use ctrl-q or ctrl-c to exit");
     while(end){
-        c = 0;
-        read(STDIN_FILENO, &c, 1);
-        if(c == 3) end = 0;
-        else if (c > 32) {
-            printc(c);
-        }
-        if(c == 27)
-            GO_UP;
+        input_handle();
+        print_cursor_positions();
     }
-
     return 0;
 }
