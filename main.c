@@ -9,14 +9,15 @@
 #include <sys/ioctl.h>
 #include <ctype.h>
 
-#define MAX_INPUT_BUFFER 4096
 #define CTRL_KEY(x) ((x) & 0x1f)
+#define SPACE 0x20
 #define printi(x) printf("%d\n", x)
 #define printc(x) printf("%c\n", x)
 
 
 static struct termios old_termios;
-int end = 1, cursorx = 0, cursory = 0;
+int end = 1, cursorx = 1, cursory = 2;
+int *arr, len = 0;
 
 enum direction{
     UP = 1001,
@@ -115,6 +116,44 @@ int read_key(){
     }
     return c;
 }
+
+void replace(int *a, int *b){
+    int temp;
+    temp = (*a);
+    (*a) = (*b);
+    (*b) = temp;
+}
+
+int _check(){
+    if(len == 0) return 1;
+    else{
+        for(int i = 0; i < len; i++){
+            if(arr[i] == cursory) {
+                replace(&arr[i], &arr[len - 1]);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+
+void put_x(){
+    int check = _check();
+    if(!check){
+        printc(' ');
+        len--;
+        arr = realloc(arr, len * sizeof(int));
+    }else{
+        len++;
+        printc('X');
+        arr = realloc(arr, len * sizeof(int));
+        arr[len - 1] = cursory;
+    }
+
+}
+
+
 /*
  * Handle input 
  * get terminal size and control user input
@@ -147,8 +186,25 @@ void input_handle(){
         case CTRL_KEY('q'):
             end = 0;
             break;
+        case SPACE:
+            put_x();
     }
 
+}
+
+void file_open(){
+    FILE *fp;
+    char c[1024];
+    if((fp = fopen("lista.txt", "r")) == NULL){
+        die("fopen");
+    }
+    
+
+    while(fgets(c, sizeof(c), fp) != NULL){
+        //printf("[ ] ");
+        printf("[ ] %s", c);
+    }
+    fclose(fp);
 }
 
 int main(int argc, char **argv){
@@ -156,10 +212,11 @@ int main(int argc, char **argv){
 
     configure_terminal();
     clear(); 
-    puts("Use ctrl-q or ctrl-c to exit");
+    puts("Use ctrl-q or ctrl-c to exit\n");
+    file_open();
     while(end){
-        input_handle();
         print_cursor_positions();
+        input_handle();
     }
     return 0;
 }
