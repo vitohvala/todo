@@ -1,5 +1,5 @@
 CC=cc
-CFLAGS=-Wall -g -Wextra -Wextra -std=c99 -pedantic -Wno-deprecated-declarations -Os
+CFLAGS=-Wall -g -Wextra -Werror -std=c99 -pedantic -Wno-deprecated-declarations -Os
 LIBS=""
 BIN=todo
 SRC=main.c
