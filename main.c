@@ -65,7 +65,8 @@ void configure_terminal(){
     
     tcgetattr(STDIN_FILENO, &old_termios);
     struct termios new_termios = old_termios;
-   
+  
+    new_termios.c_iflag &= ~(IXON);
     new_termios.c_lflag &= ~(ICANON | ECHO | ISIG);
     new_termios.c_cc[VMIN] = 0;
     new_termios.c_cc[VTIME] =  1;
@@ -277,7 +278,7 @@ void input_handle(){
 void file_open(){
     FILE *fp;
     char c[1024];
-    if((fp = fopen("lista.txt", "r")) == NULL){
+    if((fp = fopen("lista.txt", "a+")) == NULL){
         die("fopen");
     }
     
