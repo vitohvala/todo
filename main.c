@@ -304,6 +304,8 @@ void init(){
     clear(); 
     puts("Use ctrl-q or ctrl-c to exit, i to add new, ctrl-a to check/uncheck all, del key to delete\n");
     file_open();
+    for(size_t i = 0; i < (size_t)lines; i++)
+        free(list[i]);
 }
 
 int main(int argc, char **argv){
@@ -323,5 +325,7 @@ int main(int argc, char **argv){
         input_handle();
     }
     init();
+
+    free(arr);
     return 0;
 }
